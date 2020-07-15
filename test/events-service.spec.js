@@ -3,7 +3,7 @@ const knex = require('knex')
 const app = require('../src/app')
 const { makeEventsArray, makeMaliciousEvent } = require('./events-fixtures')
 
-describe.only(`events service object`, function() {
+describe(`events service object`, function() {
   let db
 
   before('make knex instance', () => {

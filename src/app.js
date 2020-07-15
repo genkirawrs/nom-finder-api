@@ -28,6 +28,10 @@ app.use(
 app.use('/menu', menuRouter)
 app.use('/calendar', eventsRouter)
 
+app.get('/', (req, res) => {
+   res.send('Hello, boilerplate!')
+})
+
 app.use(function errorHandler(error, req, res, next) {
   let response
   if (NODE_ENV === 'production') {

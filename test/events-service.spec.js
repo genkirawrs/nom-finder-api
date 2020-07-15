@@ -1,164 +1,284 @@
-const EventsService = require('../src/events/events-services')
+const { expect } = require('chai')
 const knex = require('knex')
+const app = require('../src/app')
+const { makeEventsArray, makeMaliciousEvent } = require('./events-fixtures')
 
+describe.only(`events service object`, function() {
+  let db
 
-describe(`events service object`, function() {
-    let db
+  before('make knex instance', () => {
+    db = knex({
+      client: 'pg',
+      connection: process.env.TEST_DATABASE_URL,
+    })
+    app.set('db', db)
+  })
 
-    let testEvents = [
-      {
-	id: 1,
-	event_name: 'Lunch @ The Ave',
-	start_date: new Date('2020-07-17 11:30:00'),
-	end_date: new Date('2020-07-17 13:30:00'),
-	event_type: 'public',
-	location_address: '5th Ave',
-	location_city: 'Santa Clara',
-	location_zipcode: 95050
-      },
-      {
-        id: 2,
-        event_name: 'Private Event',
-        start_date: new Date('2020-07-18 11:30:00'),
-        end_date: new Date('2020-07-18 13:30:00'),
-        event_type: 'private',
-        location_address: '123 Main St',
-        location_city: 'San Jose',
-        location_zipcode: 95132
-      },
-      {
-        id: 3,
-        event_name: 'Lunch @ Vista 99',
-        start_date: new Date('2020-07-23 11:30:00'),
-        end_date: new Date('2020-07-23 13:30:00'),
-        event_type: 'public',
-        location_address: '99 Vista Montaña',
-        location_city: 'San Jose',
-        location_zipcode: 95134
-      },
-      {
-        id: 4,
-        event_name: 'Private Event',
-        start_date: new Date('2020-07-23 17:00:00'),
-        end_date: new Date('2020-07-23 18:30:00'),
-        event_type: 'private',
-        location_address: '123 Main St',
-        location_city: 'San Jose',
-        location_zipcode: 95132
-      }
-    ]
+  after('disconnect from db', () => db.destroy())
+  before('clean the table', () => db('nomfinder_events').truncate())
+  afterEach(() => db('nomfinder_events').truncate())
 
-    before(() => {
-      db = knex({
-        client: 'pg',
-        connection: process.env.TEST_DATABASE_URL,
+  describe(`GET /calendar`, () => {
+    context(`Given no events`, () => {
+      it(`responds with 200 and an empty list`, () => {
+        return supertest(app)
+          .get('/calendar')
+          .expect(200, [])
       })
     })
 
-    before(() => db('nomfinder_events').truncate())
-    afterEach(() => db('nomfinder_events').truncate())
-    after(() => db.destroy())
+    context('Given there are events in the database', () => {
+        const testEvents = makeEventsArray()
 
-
-    context(`Given 'nomfinder_events' has data`, () => {
-      beforeEach(() => {
+      beforeEach('insert events', () => {
         return db
           .into('nomfinder_events')
           .insert(testEvents)
       })
 
-      it(`getAllUpcomingEvents resolves all upcoming events from 'nomfinder_events' table`, () => {
-        return EventsService.getAllUpcomingEvents(db)
-          .then(actual => {
-            expect(actual).to.eql(testEvents)
+      it('responds with 200 and all of the events', () => {
+        return supertest(app)
+          .get('/calendar')
+          .expect(200, testEvents)
+      })
+    })
+
+    context(`Given an XSS attack event`, () => {
+      const { maliciousEvent, expectedEvent } = makeMaliciousEvent()
+      const testEvents = makeEventsArray()
+
+      beforeEach('insert malicious event', () => {
+        return db
+              .into('nomfinder_events')
+              .insert([ maliciousEvent ])
+      })
+
+      it('removes XSS attack content', () => {
+        return supertest(app)
+          .get(`/calendar`)
+          .expect(200)
+          .expect(res => {
+            expect(res.body[0].event_name).to.eql(expectedEvent.event_name)
+            expect(res.body[0].location_address).to.eql(expectedEvent.location_address)
           })
       })
+    })
 
-      it(`getEventById() resolves an event by id from 'nomfinder_events' table`, () => {
-	const thirdId = 3
-	const thirdTestEvent = testEvents[thirdId - 1]
-	return EventsService.getEventById(db, thirdId)
-	  .then(actual => {
-	    expect(actual).to.eql({
-		id: thirdId,
-		event_name: thirdTestEvent.event_name,
-		start_date: thirdTestEvent.start_date,
-		end_date: thirdTestEvent.end_date,
-		event_type: thirdTestEvent.event_type,
-		location_address: thirdTestEvent.location_address,
-		location_city: thirdTestEvent.location_city,
-		location_zipcode: thirdTestEvent.location_zipcode,
-	    })
-	  })
-      })
+  })
 
-      it(`deleteEvent() removes an event by id from 'nomfinder_events' table`, () => {
-        const eventId = 3
-        return EventsService.deleteEvent(db, eventId)
-          .then(() => EventsService.getAllUpcomingEvents(db))
-          .then(allEvents => {
-             const expected = testEvents.filter(event => event.id !== eventId)
-             expect(allEvents).to.eql(expected)
+  describe(`POST /calendar`, () => {
+    it(`creates an event, responding with 201 and the new event`, () => {
+      this.retries(3) 
+      const newEvent = {
+          event_name: 'new event name',
+          start_date: '2020-07-23T17:00:00.000Z',
+          end_date: '2020-07-23T18:30:00.000Z',
+          event_type: 'private',
+          location_address: '5 First St',
+          location_city: 'Santa Clara',
+          location_zipcode: 95054,
+      }
+      return supertest(app)
+        .post('/calendar')
+        .send(newEvent)
+        .expect(201)
+        .expect(res => {
+          expect(res.body.event_name).to.eql(newEvent.event_name)
+          expect(res.body.start_date).to.eql(newEvent.start_date)
+          expect(res.body.end_date).to.eql(newEvent.end_date)
+          expect(res.body.event_type).to.eql(newEvent.event_type)
+          expect(res.body.location_address).to.eql(newEvent.location_address)
+          expect(res.body.location_city).to.eql(newEvent.location_city)
+          expect(res.body.location_zipcode).to.eql(newEvent.location_zipcode)
+          expect(res.headers.location).to.eql(`/calendar/${res.body.id}`)
+        })
+        .then(res =>
+          supertest(app)
+            .get(`/calendar/${res.body.id}`)
+            .expect(res.body)
+        )
+    })
+    const requiredFields = ['event_name', 'start_date', 'end_date', 'event_type', 'location_address', 'location_city', 'location_zipcode']
+
+    requiredFields.forEach(field => {
+      const newEvent = {
+        event_name: 'Test event',
+        start_date: '2020-07-23T17:00:00.000Z',
+        end_date: '2020-07-23T18:30:00.000Z',
+        event_type: 'public',
+        location_address: '5 First St',
+        location_city: 'Santa Clara',
+        location_zipcode: 95054,
+      }
+
+      it(`responds with 400 and an error message when the '${field}' is missing`, () => {
+        delete newEvent[field]
+
+        return supertest(app)
+          .post('/calendar')
+          .send(newEvent)
+          .expect(400, {
+            error: { message: `Missing '${field}' in request body` }
           })
       })
+    })
 
-      it(`updateEvent() updates an event from the 'nomfinder_events' table`, () => {
-	const idOfEventToUpdate = 3
-	const newEventData = {
+    it('removes XSS attack content from response', () => {
+      const { maliciousEvent, expectedEvent } = makeMaliciousEvent()
+      return supertest(app)
+        .post(`/calendar`)
+        .send(maliciousEvent)
+        .expect(201)
+        .expect(res => {
+          expect(res.body.event_name).to.eql(expectedEvent.event_name)
+          expect(res.body.location_address).to.eql(expectedEvent.location_address)
+        })
+    })
+
+  })
+
+  describe(`DELETE /calendar/:event_id`, () => {
+    context(`Given no events`, () => {
+      it(`responds with 404`, () => {
+        const eventId = 123456
+        return supertest(app)
+          .delete(`/calendar/${eventId}`)
+          .expect(404, { error: { message: `Event doesn't exist` } })
+      })
+    })
+
+    context('Given there are events in the database', () => {
+      const testEvents = makeEventsArray() 
+
+      beforeEach('insert events', () => {
+        return db
+          .into('nomfinder_events')
+          .insert(testEvents)
+      })
+
+      it('responds with 204 and removes the event', () => {
+        const idToRemove = 2
+        const expectedEvents = testEvents.filter(event => event.id !== idToRemove)
+        return supertest(app)
+          .delete(`/calendar/${idToRemove}`)
+          .expect(204)
+          .then(res =>
+            supertest(app)
+              .get(`/calendar`)
+              .expect(expectedEvents)
+          )
+      })
+    })
+  })
+
+  describe(`GET /calendar/:event_id`, () => {
+    context(`Given no event`, () => {
+      it(`responds with 404`, () => {
+        const eventId = 123456
+        return supertest(app)
+          .get(`/calendar/${eventId}`)
+          .expect(404, { error: { message: `Event doesn't exist` } })
+      })
+    })
+
+    context('Given there are events in the database', () => {
+	const testEvents = makeEventsArray()
+
+      beforeEach('insert events', () => {
+        return db
+          .into('nomfinder_events')
+          .insert(testEvents)
+      })
+
+      it('responds with 200 and the specified event', () => {
+        const eventId = 2
+        const expectedEvent = testEvents[eventId - 1]
+        return supertest(app)
+          .get(`/calendar/${eventId}`)
+          .expect(200, expectedEvent)
+      })
+    })
+  })
+  describe(`PATCH /calendar/:event_id`, () => {
+    context(`Given no events`, () => {
+      it(`responds with 404`, () => {
+        const eventId = 123456
+        return supertest(app)
+          .delete(`/calendar/${eventId}`)
+          .expect(404, { error: { message: `Event doesn't exist` } })
+      })
+    })
+
+    context('Given there are events in the database', () => {
+      const testEvents = makeEventsArray()
+
+      beforeEach('insert events', () => {
+        return db
+          .into('nomfinder_events')
+          .insert(testEvents)
+      })
+
+      it('responds with 204 and updates the event', () => {
+        const idToUpdate = 2
+        const updateEvent = {
           event_name: 'Updated Event test',
-          start_date: new Date('2020-07-23 17:00:00'),
-          end_date: new Date('2020-07-23 18:30:00'),
-          event_type: 'private', 
+          start_date: '2020-07-29T17:00:00.000Z',
+          end_date: '2020-07-29T18:30:00.000Z',
+          event_type: 'private',
           location_address: '5 First St',
           location_city: 'Santa Clara',
           location_zipcode: 95054
-	}
-	return EventsService.updateEvent(db, idOfEventToUpdate, newEventData)
-	  .then(() => EventsService.getEventById(db, idOfEventToUpdate))
-	  .then(event => {
-	     expect(event).to.eql({
-		id: idOfEventToUpdate,
-		...newEventData,
-	     })
-	  })
+        }
+        const expectedEvent = {
+          ...testEvents[idToUpdate - 1],
+          ...updateEvent
+        }
+        return supertest(app)
+          .patch(`/calendar/${idToUpdate}`)
+          .send(updateEvent)
+          .expect(204)
+          .then(res =>
+            supertest(app)
+              .get(`/calendar/${idToUpdate}`)
+              .expect(expectedEvent)
+          )
       })
 
-    })
-
-    context(`Given 'nomfinder_events' has no data`, () => {
-
-      it(`getAllUpcomingEvents() resolves an empty array`, () => {
-        return EventsService.getAllUpcomingEvents(db)
-          .then(actual => {
-            expect(actual).to.eql([])
-        })
-      })
-
-      it(`insertEvent() inserts an event and resolves the event with an 'id'`, () => {
-	const newEvent = {
-          event_name: 'Lunch @ River Terrace',
-          start_date: new Date('2020-07-25 11:30:00'),
-          end_date: new Date('2020-07-25 13:30:00'),
-          event_type: 'public',
-          location_address: '730 Agnew Rd',
-          location_city: 'Santa Clara',
-          location_zipcode: 95054
-	}
-	return EventsService.insertEvent(db, newEvent)
-	  .then(actual => {
-	    expect(actual).to.eql({
-	        id: 1,
-		event_name: newEvent.event_name,
-		start_date: new Date(newEvent.start_date),
-	        end_date: new Date(newEvent.end_date),
-        	event_type: newEvent.event_type,
-	        location_address: newEvent.location_address,
-        	location_city: newEvent.location_city,
-	        location_zipcode: newEvent.location_zipcode
-            })
+      it(`responds with 400 when no required fields supplied`, () => {
+        const idToUpdate = 2
+        return supertest(app)
+          .patch(`/calendar/${idToUpdate}`)
+          .send({ irrelevantField: 'foo' })
+          .expect(400, {
+            error: {
+              message: `invalid field`
+            }
           })
       })
 
-    })
+      it(`responds with 204 when updating only a subset of fields`, () => {
+        const idToUpdate = 2
+        const updateEvent = {
+          event_name: 'updated event title',
+        }
+        const expectedEvent = {
+          ...testEvents[idToUpdate - 1],
+          ...updateEvent
+        }
 
+        return supertest(app)
+          .patch(`/calendar/${idToUpdate}`)
+          .send({
+            ...updateEvent,
+            fieldToIgnore: 'should not be in GET response'
+          })
+          .expect(204)
+          .then(res =>
+            supertest(app)
+              .get(`/calendar/${idToUpdate}`)
+              .expect(expectedEvent)
+          )
+      })
+    })
+  })
 })

@@ -4,8 +4,10 @@ const morgan = require('morgan')
 const cors = require('cors')
 const helmet = require('helmet')
 const { NODE_ENV } = require('./config')
-
 const {CLIENT_ORIGIN} = require('./config');
+
+const menuRouter = require('./menu/menu-router')
+const eventsRouter = require('./events/events-router')
 
 const app = express()
 
@@ -23,9 +25,8 @@ app.use(
     })
 );
 
-app.get('/', (req, res) => {
-   res.send('Hello, boilerplate!')
-})
+app.use('/menu', menuRouter)
+app.use('/calendar', eventsRouter)
 
 app.use(function errorHandler(error, req, res, next) {
   let response

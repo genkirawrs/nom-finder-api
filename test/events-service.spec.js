@@ -18,11 +18,11 @@ describe(`events service object`, function() {
   before('clean the table', () => db('nomfinder_events').truncate())
   afterEach(() => db('nomfinder_events').truncate())
 
-  describe(`GET /calendar`, () => {
+  describe(`GET /api/calendar`, () => {
     context(`Given no events`, () => {
       it(`responds with 200 and an empty list`, () => {
         return supertest(app)
-          .get('/calendar')
+          .get('/api/calendar')
           .expect(200, [])
       })
     })
@@ -38,7 +38,7 @@ describe(`events service object`, function() {
 
       it('responds with 200 and all of the events', () => {
         return supertest(app)
-          .get('/calendar')
+          .get('/api/calendar')
           .expect(200, testEvents)
       })
     })
@@ -55,7 +55,7 @@ describe(`events service object`, function() {
 
       it('removes XSS attack content', () => {
         return supertest(app)
-          .get(`/calendar`)
+          .get(`/api/calendar`)
           .expect(200)
           .expect(res => {
             expect(res.body[0].event_name).to.eql(expectedEvent.event_name)
@@ -66,7 +66,7 @@ describe(`events service object`, function() {
 
   })
 
-  describe(`POST /calendar`, () => {
+  describe(`POST /api/calendar`, () => {
     it(`creates an event, responding with 201 and the new event`, () => {
       this.retries(3) 
       const newEvent = {
@@ -79,7 +79,7 @@ describe(`events service object`, function() {
           location_zipcode: 95054,
       }
       return supertest(app)
-        .post('/calendar')
+        .post('/api/calendar')
         .send(newEvent)
         .expect(201)
         .expect(res => {
@@ -90,11 +90,11 @@ describe(`events service object`, function() {
           expect(res.body.location_address).to.eql(newEvent.location_address)
           expect(res.body.location_city).to.eql(newEvent.location_city)
           expect(res.body.location_zipcode).to.eql(newEvent.location_zipcode)
-          expect(res.headers.location).to.eql(`/calendar/${res.body.id}`)
+          expect(res.headers.location).to.eql(`/api/calendar/${res.body.id}`)
         })
         .then(res =>
           supertest(app)
-            .get(`/calendar/${res.body.id}`)
+            .get(`/api/calendar/${res.body.id}`)
             .expect(res.body)
         )
     })
@@ -115,7 +115,7 @@ describe(`events service object`, function() {
         delete newEvent[field]
 
         return supertest(app)
-          .post('/calendar')
+          .post('/api/calendar')
           .send(newEvent)
           .expect(400, {
             error: { message: `Missing '${field}' in request body` }
@@ -126,7 +126,7 @@ describe(`events service object`, function() {
     it('removes XSS attack content from response', () => {
       const { maliciousEvent, expectedEvent } = makeMaliciousEvent()
       return supertest(app)
-        .post(`/calendar`)
+        .post(`/api/calendar`)
         .send(maliciousEvent)
         .expect(201)
         .expect(res => {
@@ -137,12 +137,12 @@ describe(`events service object`, function() {
 
   })
 
-  describe(`DELETE /calendar/:event_id`, () => {
+  describe(`DELETE /api/calendar/:event_id`, () => {
     context(`Given no events`, () => {
       it(`responds with 404`, () => {
         const eventId = 123456
         return supertest(app)
-          .delete(`/calendar/${eventId}`)
+          .delete(`/api/calendar/${eventId}`)
           .expect(404, { error: { message: `Event doesn't exist` } })
       })
     })
@@ -160,23 +160,23 @@ describe(`events service object`, function() {
         const idToRemove = 2
         const expectedEvents = testEvents.filter(event => event.id !== idToRemove)
         return supertest(app)
-          .delete(`/calendar/${idToRemove}`)
+          .delete(`/api/calendar/${idToRemove}`)
           .expect(204)
           .then(res =>
             supertest(app)
-              .get(`/calendar`)
+              .get(`/api/calendar`)
               .expect(expectedEvents)
           )
       })
     })
   })
 
-  describe(`GET /calendar/:event_id`, () => {
+  describe(`GET /api/calendar/:event_id`, () => {
     context(`Given no event`, () => {
       it(`responds with 404`, () => {
         const eventId = 123456
         return supertest(app)
-          .get(`/calendar/${eventId}`)
+          .get(`/api/calendar/${eventId}`)
           .expect(404, { error: { message: `Event doesn't exist` } })
       })
     })
@@ -194,17 +194,17 @@ describe(`events service object`, function() {
         const eventId = 2
         const expectedEvent = testEvents[eventId - 1]
         return supertest(app)
-          .get(`/calendar/${eventId}`)
+          .get(`/api/calendar/${eventId}`)
           .expect(200, expectedEvent)
       })
     })
   })
-  describe(`PATCH /calendar/:event_id`, () => {
+  describe(`PATCH /api/calendar/:event_id`, () => {
     context(`Given no events`, () => {
       it(`responds with 404`, () => {
         const eventId = 123456
         return supertest(app)
-          .delete(`/calendar/${eventId}`)
+          .delete(`/api/calendar/${eventId}`)
           .expect(404, { error: { message: `Event doesn't exist` } })
       })
     })
@@ -234,12 +234,12 @@ describe(`events service object`, function() {
           ...updateEvent
         }
         return supertest(app)
-          .patch(`/calendar/${idToUpdate}`)
+          .patch(`/api/calendar/${idToUpdate}`)
           .send(updateEvent)
           .expect(204)
           .then(res =>
             supertest(app)
-              .get(`/calendar/${idToUpdate}`)
+              .get(`/api/calendar/${idToUpdate}`)
               .expect(expectedEvent)
           )
       })
@@ -247,7 +247,7 @@ describe(`events service object`, function() {
       it(`responds with 400 when no required fields supplied`, () => {
         const idToUpdate = 2
         return supertest(app)
-          .patch(`/calendar/${idToUpdate}`)
+          .patch(`/api/calendar/${idToUpdate}`)
           .send({ irrelevantField: 'foo' })
           .expect(400, {
             error: {
@@ -267,7 +267,7 @@ describe(`events service object`, function() {
         }
 
         return supertest(app)
-          .patch(`/calendar/${idToUpdate}`)
+          .patch(`/api/calendar/${idToUpdate}`)
           .send({
             ...updateEvent,
             fieldToIgnore: 'should not be in GET response'
@@ -275,7 +275,7 @@ describe(`events service object`, function() {
           .expect(204)
           .then(res =>
             supertest(app)
-              .get(`/calendar/${idToUpdate}`)
+              .get(`/api/calendar/${idToUpdate}`)
               .expect(expectedEvent)
           )
       })

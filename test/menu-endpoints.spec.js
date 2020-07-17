@@ -20,11 +20,11 @@ describe('Menu Endpoints', function() {
   before('clean the table', () => db('nomfinder_menu_items').truncate())
   afterEach(() => db('nomfinder_menu_items').truncate())
 
-  describe(`GET /menu`, () => {
+  describe(`GET /api/menu`, () => {
     context(`Given no menu items`, () => {
       it(`responds with 200 and an empty list`, () => {
         return supertest(app)
-          .get('/menu')
+          .get('/api/menu')
           .expect(200, [])
       })
     })
@@ -40,7 +40,7 @@ describe('Menu Endpoints', function() {
 
       it('responds with 200 and all of the menu items', () => {
         return supertest(app)
-          .get('/menu')
+          .get('/api/menu')
           .expect(200, testMenuItems)
       })
     })
@@ -57,7 +57,7 @@ describe('Menu Endpoints', function() {
 
       it('removes XSS attack content', () => {
         return supertest(app)
-          .get(`/menu`)
+          .get(`/api/menu`)
           .expect(200)
           .expect(res => {
             expect(res.body[0].item_name).to.eql(expectedItem.item_name)
@@ -69,7 +69,7 @@ describe('Menu Endpoints', function() {
   })
 
 
-  describe(`POST /menu`, () => {
+  describe(`POST /api/menu`, () => {
     it(`creates an menu item, responding with 201 and the new menu item`, () => {
       this.retries(3)
       const newItem = {
@@ -85,7 +85,7 @@ describe('Menu Endpoints', function() {
           menu_category: 1
       }
       return supertest(app)
-        .post('/menu')
+        .post('/api/menu')
         .send(newItem)
         .expect(201)
         .expect(res => {
@@ -102,7 +102,7 @@ describe('Menu Endpoints', function() {
         })
         .then(res =>
           supertest(app)
-            .get(`/menu/${res.body.id}`)
+            .get(`/api/menu/${res.body.id}`)
             .expect(res.body)
         )
     })
@@ -127,7 +127,7 @@ describe('Menu Endpoints', function() {
         delete newItem[field]
 
         return supertest(app)
-          .post('/menu')
+          .post('/api/menu')
           .send(newItem)
           .expect(400, {
             error: { message: `Missing '${field}' in request body` }
@@ -138,7 +138,7 @@ describe('Menu Endpoints', function() {
     it('removes XSS attack content from response', () => {
       const { maliciousItem, expectedItem } = makeMaliciousItem()
       return supertest(app)
-        .post(`/menu`)
+        .post(`/api/menu`)
         .send(maliciousItem)
         .expect(201)
         .expect(res => {
@@ -150,12 +150,12 @@ describe('Menu Endpoints', function() {
   })
 
 
-  describe(`DELETE /menu/:item_id`, () => {
+  describe(`DELETE /api/menu/:item_id`, () => {
     context(`Given no items`, () => {
       it(`responds with 404`, () => {
         const itemId = 123456
         return supertest(app)
-          .delete(`/menu/${itemId}`)
+          .delete(`/api/menu/${itemId}`)
           .expect(404, { error: { message: `Menu item doesn't exist` } })
       })
     })
@@ -173,23 +173,23 @@ describe('Menu Endpoints', function() {
         const idToRemove = 2
         const expectedItems = testMenuItems.filter(item => item.id !== idToRemove)
         return supertest(app)
-          .delete(`/menu/${idToRemove}`)
+          .delete(`/api/menu/${idToRemove}`)
           .expect(204)
           .then(res =>
             supertest(app)
-              .get(`/menu`)
+              .get(`/api/menu`)
               .expect(expectedItems)
           )
       })
     })
   })
 
-  describe(`GET /menu/:menu_item_id`, () => {
+  describe(`GET /api/menu/:menu_item_id`, () => {
     context(`Given no menu item`, () => {
       it(`responds with 404`, () => {
         const itemId = 123456
         return supertest(app)
-          .get(`/menu/${itemId}`)
+          .get(`/api/menu/${itemId}`)
           .expect(404, { error: { message: `Menu item doesn't exist` } })
       })
     })
@@ -207,18 +207,18 @@ describe('Menu Endpoints', function() {
         const itemId = 2
         const expectedItem = testMenuItems[itemId - 1]
         return supertest(app)
-          .get(`/menu/${itemId}`)
+          .get(`/api/menu/${itemId}`)
           .expect(200, expectedItem)
       })
     })
   })
 
-  describe(`PATCH /menu/:item_id`, () => {
+  describe(`PATCH /api/menu/:item_id`, () => {
     context(`Given no items`, () => {
       it(`responds with 404`, () => {
         const itemId = 123456
         return supertest(app)
-          .delete(`/menu/${itemId}`)
+          .delete(`/api/menu/${itemId}`)
           .expect(404, { error: { message: `Menu item doesn't exist` } })
       })
     })
@@ -251,12 +251,12 @@ describe('Menu Endpoints', function() {
           ...updateItem
         }
         return supertest(app)
-          .patch(`/menu/${idToUpdate}`)
+          .patch(`/api/menu/${idToUpdate}`)
           .send(updateItem)
           .expect(204)
           .then(res =>
             supertest(app)
-              .get(`/menu/${idToUpdate}`)
+              .get(`/api/menu/${idToUpdate}`)
               .expect(expectedItem)
           )
       })
@@ -264,7 +264,7 @@ describe('Menu Endpoints', function() {
       it(`responds with 400 when no required fields supplied`, () => {
         const idToUpdate = 2
         return supertest(app)
-          .patch(`/menu/${idToUpdate}`)
+          .patch(`/api/menu/${idToUpdate}`)
           .send({ irrelevantField: 'foo' })
           .expect(400, {
             error: {
@@ -284,7 +284,7 @@ describe('Menu Endpoints', function() {
         }
 
         return supertest(app)
-          .patch(`/menu/${idToUpdate}`)
+          .patch(`/api/menu/${idToUpdate}`)
           .send({
             ...updateItem,
             fieldToIgnore: 'should not be in GET response'
@@ -292,7 +292,7 @@ describe('Menu Endpoints', function() {
           .expect(204)
           .then(res =>
             supertest(app)
-              .get(`/menu/${idToUpdate}`)
+              .get(`/api/menu/${idToUpdate}`)
               .expect(expectedItem)
           )
       })

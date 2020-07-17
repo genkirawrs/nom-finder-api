@@ -1,4 +1,5 @@
 const express = require('express')
+const path = require('path')
 const xss = require('xss')
 const MenuService = require('./menu-services')
 
@@ -33,7 +34,7 @@ menuRouter
        .then(item => {
          res
            .status(201)
-           .location(`/menu/${item.id}`)
+           .location(path.posix.join(req.originalUrl, `/menu/${item.id}`))
            .json(item)
        })
        .catch(next)

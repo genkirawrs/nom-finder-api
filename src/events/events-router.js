@@ -1,3 +1,4 @@
+const path = require('path')
 const express = require('express')
 const xss = require('xss')
 const EventsService = require('./events-services')
@@ -19,9 +20,7 @@ const serializeEvent = event => ({
 eventsRouter
     .route('/')
     .get((req, res, next) => {
-      EventsService.getAllUpcomingEvents(
-        req.app.get('db')
-      )
+      EventsService.getAllUpcomingEvents(req.app.get('db'))
       .then(events=> {
           res.json(events.map(serializeEvent))
       })
@@ -44,7 +43,7 @@ eventsRouter
        .then(event => {
          res
            .status(201)
-           .location(`/calendar/${event.id}`)
+           .location(path.posix.join(req.originalUrl, `/${event.id}`))
            .json(serializeEvent(event))
        })
        .catch(next)

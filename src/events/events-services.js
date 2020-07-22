@@ -24,6 +24,23 @@ const EventsService = {
 	.where({id})
 	.update(newEventFields)
     },
+    insertFavoriteEvent(knex, newFav){
+	return knex
+        .insert(newFav)
+        .into('nomfinder_favorite_events')
+        .returning('*')
+        .then(rows => {
+            return rows[0]
+        })
+    },
+    deleteFavoriteEvent(knex,id){
+        return knex('nomfinder_favorite_events')
+        .where({id})
+        .delete()
+    },
+    getFavoriteEvents(knex, user_id){
+        return knex.from('nomfinder_favorite_events').select('*').where('user_id', user_id)
+    },
 }
 
 module.exports = EventsService

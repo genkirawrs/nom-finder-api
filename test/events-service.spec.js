@@ -281,4 +281,35 @@ describe(`events service object`, function() {
       })
     })
   })
+
+  describe(`GET /api/calendar/fav/:user_id/:event_id`, () => {
+    context(`Given no event`, () => {
+      it(`responds with 404`, () => {
+        const eventId = 123456
+        return supertest(app)
+          .get(`/api/calendar/${eventId}`)
+          .expect(404, { error: { message: `Event doesn't exist` } })
+      })
+    })
+
+    context('Given there are events in the database', () => {
+        const testEvents = makeEventsArray()
+
+      beforeEach('insert events', () => {
+        return db
+          .into('nomfinder_events')
+          .insert(testEvents)
+      })
+
+      it('responds with 200 and the specified event', () => {
+        const eventId = 2
+        const expectedEvent = testEvents[eventId - 1]
+        return supertest(app)
+          .get(`/api/calendar/${eventId}`)
+          .expect(200, expectedEvent)
+      })
+    })
+  })
+
+
 })

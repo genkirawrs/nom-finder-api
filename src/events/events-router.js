@@ -105,4 +105,48 @@ eventsRouter
     })
 
 
+eventsRouter
+  .route('/fav/:user_id/:event_id')
+    .get((req, res, next) => {
+      EventsService.getFavoriteEvents(
+        req.app.get('db'),
+        req.params.user_id
+      ).then(events=> {
+          res.json(events)
+      })
+      .catch(next)
+    })
+    .post(jsonParser, (req, res, next) => {
+      const { user_id, event_id } = req.body
+      const newFav = { user_id, event_id }
+      for (const [key, value] of Object.entries(newFav)) {
+        if (value == null) {
+          return res.status(400).json({
+            error: { message: `Missing '${key}' in request body` }
+          })
+        }
+      } 
+      EventsService.insertFavoriteEvent(
+        req.app.get('db'),
+        newFav
+      )  
+       .then(fav => {
+         res
+           .status(201)
+           .json(fav)
+       })
+       .catch(next)
+    })
+    .delete(jsonParser, (req, res, next) => {
+      const { user_id, event_id } = req.body
+      EventsService.deleteFavoriteEvent(
+        req.app.get('db'),
+        req.params.event_id
+      )
+        .then(() => {
+          res.status(204).end()
+        })
+        .catch(next)
+    })
+
 module.exports = eventsRouter

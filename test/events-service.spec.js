@@ -1,7 +1,7 @@
 const { expect } = require('chai')
 const knex = require('knex')
 const app = require('../src/app')
-const { makeEventsArray, makeMaliciousEvent } = require('./events-fixtures')
+const { makeEventsArray, makeMaliciousEvent,makeFavoritesArray } = require('./events-fixtures')
 
 describe(`events service object`, function() {
   let db
@@ -282,34 +282,118 @@ describe(`events service object`, function() {
     })
   })
 
+})
+
+
+describe(`favorite events service object`, function() {
+  let db
+    
+  before('make knex instance', () => {
+    db = knex({
+      client: 'pg',
+      connection: process.env.TEST_DATABASE_URL,
+    })
+    app.set('db', db)
+  })
+  
+  after('disconnect from db', () => db.destroy())
+  before('clean the table', () => db('nomfinder_favorite_events').truncate())
+  afterEach(() => db('nomfinder_favorite_events').truncate())
+
   describe(`GET /api/calendar/fav/:user_id/:event_id`, () => {
     context(`Given no event`, () => {
       it(`responds with 404`, () => {
         const eventId = 123456
         return supertest(app)
-          .get(`/api/calendar/${eventId}`)
-          .expect(404, { error: { message: `Event doesn't exist` } })
+          .get(`/api/calendar/fav/1/${eventId}`)
+	  .expect(200, [])
       })
     })
 
     context('Given there are events in the database', () => {
-        const testEvents = makeEventsArray()
+        const testEvents = makeFavoritesArray()
 
       beforeEach('insert events', () => {
         return db
-          .into('nomfinder_events')
+          .into('nomfinder_favorite_events')
           .insert(testEvents)
       })
 
       it('responds with 200 and the specified event', () => {
         const eventId = 2
-        const expectedEvent = testEvents[eventId - 1]
         return supertest(app)
-          .get(`/api/calendar/${eventId}`)
-          .expect(200, expectedEvent)
+          .get(`/api/calendar/fav/1/${eventId}`)
+          .expect(200, testEvents)
       })
     })
   })
 
+  describe(`DELETE /api/calendar/fav/:user_id/:event_id`, () => {
+    context(`Given no events`, () => {
+      it(`responds with 404`, () => {
+        const eventId = 123456
+        return supertest(app)
+          .delete(`/api/calendar/fav/1/${eventId}`)
+          .expect(204)
+      })
+    })
+
+    context('Given there are events in the database', () => {
+      const testEvents = makeFavoritesArray()
+
+      beforeEach('insert events', () => {
+        return db
+          .into('nomfinder_favorite_events')
+          .insert(testEvents)
+      })
+
+      it('responds with 204 and removes the event', () => {
+        const idToRemove = 2
+        const expectedEvents = testEvents.filter(event => event.id !== idToRemove)
+        return supertest(app)
+          .delete(`/api/calendar/fav/1/${idToRemove}`)
+          .expect(204)
+      })
+    })
+  })
+
+  describe(`POST /api/calendar/fav`, () => {
+    it(`creates a fav event, responding with 201 and the new event`, () => {
+      this.retries(3)
+      const newEvent = {
+	user_id: 1,
+	event_id: 4,
+      }
+	const eventId = 4
+      return supertest(app)
+        .post('/api/calendar/fav/1/$(eventId}')
+        .send(newEvent)
+        .expect(201)
+        .expect(res => {
+          expect(res.body.event_id).to.eql(newEvent.event_id)
+          expect(res.body.user_id).to.eql(newEvent.user_id)
+        })
+    })
+    const requiredFields = ['user_id','event_id']
+
+    requiredFields.forEach(field => {
+      const newEvent = {
+	event_id: 5,
+	user_id: 1
+      }
+
+      it(`responds with 400 and an error message when the '${field}' is missing`, () => {
+        delete newEvent[field]
+
+        return supertest(app)
+          .post('/api/calendar/fav/${user_id}/${event_id}')
+          .send(newEvent)
+          .expect(400, {
+            error: { message: `Missing '${field}' in request body` }
+          })
+      })
+    })
+
+  })
 
 })

@@ -31,7 +31,13 @@ Endpoints currently used for this version of the app:
 * handles delete requests for removing favorite events by user id
 
 
-Endpoints in development, not currently live but in the repo:
+## Demo
+
+- [Live Demo](https://my-nom-finder.vercel.app/)
+
+
+## In Development Features/Endpoints
+Endpoints in development, not currently live but code has been committed to repo:
 
 /menu
 * will be able to handle post requests for adding new menu items (for future admin functionality)
@@ -44,7 +50,3 @@ Endpoints in development, not currently live but in the repo:
 
 /calendar/:event_id
 * get, delete, and patch handling for editing or deleting an event. Get was set up to eventually have a full page display dedicated to any additional event details
-
-## Demo
-
-- [Live Demo](https://my-nom-finder.vercel.app/)
